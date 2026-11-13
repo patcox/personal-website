@@ -43,6 +43,44 @@ an explicit color override to win the cascade. If you touch either rule,
 check both — it's easy to change the base class and have it silently
 overridden in the page-header context.
 
+## Contact form
+
+The "Send a note" card on `/connect` posts to `api/contact.ts`. That's a
+Vercel Function in the **repo-root `api/` directory**, not an Astro route.
+Vercel deploys it alongside the static Astro build, so the site stays
+`output: 'static'` with no adapter. Don't switch to `@astrojs/vercel`
+without upgrading Astro first: the adapter version that supports Astro 4
+(v7) only knows Node 18/20 and falls back to the retired `nodejs18.x`
+runtime.
+
+The handler checks the honeypot field, validates the input, verifies the
+Cloudflare Turnstile token (siteverify, expected action `contact`, hostname
+allowlist), then sends the message through Resend's REST API with
+`reply_to` set to the visitor's address.
+
+Env vars (set in Vercel → Project → Settings → Environment Variables):
+
+| Name | Scope | What |
+|---|---|---|
+| `PUBLIC_TURNSTILE_SITEKEY` | build | Turnstile site key. If unset, the card and form are left out of the build. |
+| `TURNSTILE_SECRET` | runtime | Turnstile secret key. |
+| `TURNSTILE_HOSTNAMES` | runtime | Comma-separated hostnames siteverify must report, e.g. `patcox.net,www.patcox.net`. |
+| `RESEND_API_KEY` | runtime | Resend key, sending-only. |
+| `CONTACT_FROM` | runtime | Sender on a Resend-verified domain, e.g. `patcox.net <contact@mail.patcox.net>`. |
+| `CONTACT_TO` | runtime | Where messages are delivered. |
+
+For Preview and local runs, use Cloudflare's always-pass test keys (site key
+`1x00000000000000000000AA`, secret `1x0000000000000000000000000000000AA`)
+with `TURNSTILE_HOSTNAMES=example.com`. Test tokens carry no action, and the
+handler accepts them only when `VERCEL_ENV` isn't `production`.
+
+`astro dev` doesn't serve `api/`. To test locally without the Vercel CLI,
+build the site and run a small Node server that serves `dist/` and passes
+`POST /api/contact` to the exported `POST(request)` (Node 23+ runs the `.ts`
+directly). Set `CONTACT_TO=delivered@resend.dev` (Resend's test inbox) so
+no real mail is sent. Turnstile's widget iframe renders blank in headless
+Chromium, but it still issues the token.
+
 ## Screenshots / verification
 
 Playwright isn't a project dependency. To visually verify a change:

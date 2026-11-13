@@ -26,6 +26,7 @@ const pages = defineCollection({
     heading: z.string().optional(),
     // connect
     title: z.string().optional(),
+    description: z.string().optional(),
     // now
     lastUpdated: z.string().optional(),
   }),
