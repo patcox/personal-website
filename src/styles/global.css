@@ -630,6 +630,86 @@ main { flex: 1; }
   margin-top: 0.5rem;
 }
 
+.schedule-card--wide { grid-column: 1 / -1; }
+
+/* ─── Contact form (Connect page) ────────────────────────────────────── */
+.schedule-cards:has(+ .contact-panel:not([hidden])) { padding-bottom: 1.25rem; }
+
+.contact-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.75rem;
+  margin-bottom: 3.5rem;
+  scroll-margin-top: 80px; /* clear the sticky nav */
+}
+
+.contact-form { display: flex; flex-direction: column; gap: 1.1rem; }
+
+.contact-field { display: flex; flex-direction: column; gap: 0.35rem; }
+
+.contact-field label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.contact-field input,
+.contact-field textarea {
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  width: 100%;
+}
+
+.contact-field textarea { resize: vertical; min-height: 8rem; }
+
+.contact-field input:focus,
+.contact-field textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+/* Honeypot: off-screen rather than display:none, which some bots skip. */
+.contact-hp {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.contact-turnstile { min-height: 65px; }
+
+.contact-submit {
+  align-self: flex-start;
+  font: inherit;
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  padding: 0.65rem 1.4rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+@media (hover: hover) {
+  .contact-submit:hover { background: var(--accent-warm); }
+}
+.contact-submit:disabled { opacity: 0.6; cursor: wait; }
+
+.contact-status { font-size: 0.9rem; min-height: 1.4em; color: var(--text-muted); }
+.contact-status[data-kind="ok"] { color: var(--accent); }
+.contact-status[data-kind="error"] { color: var(--accent-warm); }
+
 .cal-embed-section {
   padding: 2rem 0 3.5rem;
 }

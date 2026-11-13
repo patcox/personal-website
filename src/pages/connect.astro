@@ -4,6 +4,10 @@ import { getEntry } from 'astro:content';
 
 const connect = await getEntry('pages', 'connect');
 const { headline, description } = connect.data;
+
+// Public by design (Turnstile site keys ship to the browser). Read at build
+// time; the "Send a note" card is left out of the build when it isn't set.
+const TURNSTILE_SITEKEY = import.meta.env.PUBLIC_TURNSTILE_SITEKEY ?? '';
 ---
 <Base
   title="Connect — Pat Cox"
@@ -40,8 +44,133 @@ const { headline, description } = connect.data;
         <div class="schedule-card-meta">1 hour · Cal.com</div>
       </button>
 
+      {TURNSTILE_SITEKEY && (
+        <button type="button" class="schedule-card schedule-card--wide" id="contact-toggle" aria-expanded="false" aria-controls="contact-panel">
+          <div class="schedule-card-icon">✉️</div>
+          <div class="schedule-card-title">Send a note</div>
+          <p class="schedule-card-desc">
+            Not ready to book a time? Send me a message and I'll get back to you by email.
+          </p>
+          <div class="schedule-card-meta">Usually within a couple of days</div>
+        </button>
+      )}
+
     </div>
+
+    {TURNSTILE_SITEKEY && (
+      <section class="contact-panel" id="contact-panel" hidden>
+        <form class="contact-form" id="contact-form" novalidate>
+          <div class="contact-field">
+            <label for="contact-name">Name</label>
+            <input id="contact-name" name="name" type="text" autocomplete="name" maxlength="100" required />
+          </div>
+          <div class="contact-field">
+            <label for="contact-email">Email</label>
+            <input id="contact-email" name="email" type="email" autocomplete="email" maxlength="200" required />
+          </div>
+          <div class="contact-field">
+            <label for="contact-message">Message</label>
+            <textarea id="contact-message" name="message" rows="6" maxlength="5000" required></textarea>
+          </div>
+          <div class="contact-hp" aria-hidden="true">
+            <label for="contact-website">Website</label>
+            <input id="contact-website" name="website" type="text" tabindex="-1" autocomplete="off" />
+          </div>
+          <div class="contact-turnstile" id="contact-turnstile" data-sitekey={TURNSTILE_SITEKEY}></div>
+          <button type="submit" class="contact-submit">Send message</button>
+          <p class="contact-status" id="contact-status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+    )}
   </div>
+
+  <script>
+    type TurnstileApi = {
+      render: (el: HTMLElement, opts: Record<string, unknown>) => string;
+      reset: (id: string) => void;
+    };
+    const w = window as Window & { turnstile?: TurnstileApi };
+
+    const toggle = document.getElementById('contact-toggle');
+    const panel = document.getElementById('contact-panel');
+    const form = document.getElementById('contact-form') as HTMLFormElement | null;
+    const widgetEl = document.getElementById('contact-turnstile');
+    const status = document.getElementById('contact-status');
+
+    let widgetId: string | undefined;
+    let scriptRequested = false;
+
+    function renderWidget() {
+      if (!w.turnstile || !widgetEl || widgetId !== undefined) return;
+      widgetId = w.turnstile.render(widgetEl, {
+        sitekey: widgetEl.dataset.sitekey,
+        action: 'contact',
+        theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light',
+      });
+    }
+
+    // Load Cloudflare's script only once someone opens the form.
+    function loadTurnstile() {
+      if (w.turnstile) return renderWidget();
+      if (scriptRequested) return;
+      scriptRequested = true;
+      const s = document.createElement('script');
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      s.async = true;
+      s.addEventListener('load', renderWidget, { once: true });
+      document.head.appendChild(s);
+    }
+
+    function setStatus(text: string, kind: 'ok' | 'error' | '') {
+      if (!status) return;
+      status.textContent = text;
+      status.dataset.kind = kind;
+    }
+
+    toggle?.addEventListener('click', () => {
+      if (!panel) return;
+      const opening = panel.hidden;
+      panel.hidden = !opening;
+      toggle.setAttribute('aria-expanded', String(opening));
+      if (opening) {
+        loadTurnstile();
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        (document.getElementById('contact-name') as HTMLInputElement | null)?.focus({ preventScroll: true });
+      }
+    });
+
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!form.reportValidity()) return;
+
+      const data = new FormData(form);
+      if (!data.get('cf-turnstile-response')) {
+        setStatus('Hang on a second while we check you’re human, then try again.', 'error');
+        return;
+      }
+
+      const submit = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+      submit.disabled = true;
+      setStatus('Sending…', '');
+
+      try {
+        const res = await fetch('/api/contact', { method: 'POST', body: data });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok && body.ok) {
+          form.reset();
+          setStatus('Thanks! Your message is on its way.', 'ok');
+        } else {
+          setStatus(body.error || 'Something went wrong. Please try again.', 'error');
+        }
+      } catch {
+        setStatus('Couldn’t reach the server. Check your connection and try again.', 'error');
+      } finally {
+        submit.disabled = false;
+        // Turnstile tokens are single-use; get a fresh one for any retry.
+        if (widgetId !== undefined) w.turnstile?.reset(widgetId);
+      }
+    });
+  </script>
 
   <script>
     (function (C, A, L) {
